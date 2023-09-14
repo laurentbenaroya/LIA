@@ -25,8 +25,9 @@ class Trainer(nn.Module):
         self.dis = Discriminator(args.size, args.channel_multiplier).to(device)
 
         # distributed computing
-        self.gen = DDP(self.gen, device_ids=[rank], find_unused_parameters=True)
-        self.dis = DDP(self.dis, device_ids=[rank], find_unused_parameters=True)
+        if rank != 0:
+            self.gen = DDP(self.gen, device_ids=[rank], find_unused_parameters=True)
+            self.dis = DDP(self.dis, device_ids=[rank], find_unused_parameters=True)
 
         g_reg_ratio = args.g_reg_every / (args.g_reg_every + 1)
         d_reg_ratio = args.d_reg_every / (args.d_reg_every + 1)
@@ -42,8 +43,11 @@ class Trainer(nn.Module):
             lr=args.lr * d_reg_ratio,
             betas=(0 ** d_reg_ratio, 0.99 ** d_reg_ratio)
         )
-
-        self.criterion_vgg = VGGLoss().to(rank)
+        self.rank = rank
+        if rank == 0:
+            self.criterion_vgg = VGGLoss()
+        else:
+            self.criterion_vgg = VGGLoss().to(rank)
 
     def g_nonsaturating_loss(self, fake_pred):
         return F.softplus(-fake_pred).mean()
@@ -102,24 +106,44 @@ class Trainer(nn.Module):
     def resume(self, resume_ckpt):
         print("load model:", resume_ckpt)
         ckpt = torch.load(resume_ckpt)
-        ckpt_name = os.path.basename(resume_ckpt)
-        start_iter = int(os.path.splitext(ckpt_name)[0])
-
-        self.gen.module.load_state_dict(ckpt["gen"])
-        self.dis.module.load_state_dict(ckpt["dis"])
+        try:
+            ckpt_name = os.path.basename(resume_ckpt)
+            start_iter = int(os.path.splitext(ckpt_name)[0])
+        except:
+            import warnings
+            start_iter = 800000
+            warnings.warn('load pre-rained, number of iterations unkown, set to %d' % start_iter)
+        if self.rank == 0:
+            self.gen.load_state_dict(ckpt["gen"])
+            self.dis.load_state_dict(ckpt["dis"])
+        else:
+            self.gen.module.load_state_dict(ckpt["gen"])
+            self.dis.module.load_state_dict(ckpt["dis"])
         self.g_optim.load_state_dict(ckpt["g_optim"])
         self.d_optim.load_state_dict(ckpt["d_optim"])
 
         return start_iter
 
     def save(self, idx, checkpoint_path):
-        torch.save(
-            {
-                "gen": self.gen.module.state_dict(),
-                "dis": self.dis.module.state_dict(),
-                "g_optim": self.g_optim.state_dict(),
-                "d_optim": self.d_optim.state_dict(),
-                "args": self.args
-            },
-            f"{checkpoint_path}/{str(idx).zfill(6)}.pt"
-        )
+        if self.rank == 0:
+            torch.save(
+                {
+                    "gen": self.gen.state_dict(),
+                    "dis": self.dis.state_dict(),
+                    "g_optim": self.g_optim.state_dict(),
+                    "d_optim": self.d_optim.state_dict(),
+                    "args": self.args
+                },
+                f"{checkpoint_path}/{str(idx).zfill(6)}.pt"
+            )
+        else:            
+            torch.save(
+                {
+                    "gen": self.gen.module.state_dict(),
+                    "dis": self.dis.module.state_dict(),
+                    "g_optim": self.g_optim.state_dict(),
+                    "d_optim": self.d_optim.state_dict(),
+                    "args": self.args
+                },
+                f"{checkpoint_path}/{str(idx).zfill(6)}.pt"
+            )
