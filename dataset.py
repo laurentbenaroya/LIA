@@ -10,6 +10,51 @@ from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
+class Macron(Dataset):
+    def __init__(self, rootdir, split, transform=None, augmentation=False):
+
+        if split == 'train':
+            self.ds_path = f'{rootdir}/train'
+        elif split == 'val':
+            self.ds_path = f'{rootdir}/val'        
+        elif split == 'test':
+            self.ds_path = f'{rootdir}/test'
+        else:
+            raise NotImplementedError
+
+        self.videos = os.listdir(self.ds_path)
+        self.augmentation = augmentation
+
+        if self.augmentation:
+            self.aug = AugmentationTransform(False, True, True)
+        else:
+            self.aug = None
+
+        self.transform = transform
+
+    def __getitem__(self, idx):
+        video_path = os.path.join(self.ds_path, self.videos[idx])
+        frames_paths = sorted(glob.glob(video_path + '/*.png'))
+        nframes = len(frames_paths)
+
+        items = random.sample(list(range(nframes)), 2)
+
+        img_source = Image.open(frames_paths[items[0]]).convert('RGB')
+        img_target = Image.open(frames_paths[items[1]]).convert('RGB')
+
+        if self.augmentation:
+            img_source, img_target = self.aug(img_source, img_target)
+
+        if self.transform is not None:
+            img_source = self.transform(img_source)
+            img_target = self.transform(img_target)
+
+            return img_source, img_target
+
+    def __len__(self):
+        return len(self.videos)
+
+
 class Vox256(Dataset):
     def __init__(self, split, transform=None, augmentation=False):
 
