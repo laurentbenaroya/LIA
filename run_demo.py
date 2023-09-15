@@ -56,6 +56,8 @@ class Demo(nn.Module):
             model_path = 'checkpoints/taichi.pt'
         elif args.model == 'ted':
             model_path = 'checkpoints/ted.pt'
+        elif args.model == 'macron':
+            model_path = 'exps/v1/checkpoint/806000.pt'
         else:
             raise NotImplementedError
 
@@ -99,7 +101,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--size", type=int, default=256)
     parser.add_argument("--channel_multiplier", type=int, default=1)
-    parser.add_argument("--model", type=str, choices=['vox', 'taichi', 'ted'], default='')
+    parser.add_argument("--model", type=str, choices=['vox', 'taichi', 'ted', 'macron'], default='')
     parser.add_argument("--latent_dim_style", type=int, default=512)
     parser.add_argument("--latent_dim_motion", type=int, default=20)
     parser.add_argument("--source_path", type=str, default='')
