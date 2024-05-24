@@ -9,6 +9,8 @@ from PIL import Image
 from pathlib import Path
 from tqdm import tqdm
 
+from gpu import lock_gpu
+
 
 def load_image(filename, size):
     img = Image.open(filename).convert('RGB')
@@ -28,8 +30,10 @@ def img_preprocessing(img_path, size):
 
 
 def vid_preprocessing(vid_path):
-    vid_dict = torchvision.io.read_video(vid_path, pts_unit='sec')
-    vid = vid_dict[0].permute(0, 3, 1, 2).unsqueeze(0)
+    vid_dict = torchvision.io.read_video(vid_path, pts_unit='sec')  # , 256)
+    vid = vid_dict[0].permute(0, 3, 1, 2)  # .unsqueeze(0)
+    vid = torchvision.transforms.Resize(256)(vid)
+    vid = vid.unsqueeze(0)
     fps = vid_dict[2]['video_fps']
     vid_norm = (vid / 255.0 - 0.5) * 2.0  # [-1, 1]
 
@@ -107,8 +111,10 @@ if __name__ == '__main__':
     parser.add_argument("--source_path", type=str, default='')
     parser.add_argument("--driving_path", type=str, default='')
     parser.add_argument("--save_folder", type=str, default='./res')
+    parser.add_argument('--cpu', help='Use CPU', action='store_true')
     args = parser.parse_args()
 
+    lock_gpu(args.cpu)
     # demo
     demo = Demo(args)
     demo.run()
